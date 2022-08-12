@@ -70,7 +70,8 @@ def update_emoji(event, client):
     channel_id = event.get("item", {}).get("channel")
     user_id = event.get("user")
     reaction = event.get("reaction")
-    message_ts = event.get("ts")
+    message_ts = event.get("item", {}).get("ts")
+    message_thread_ts = event.get("item", {}).get("thread_ts")
 
     # reactions and message only logged if the reaction is a round pushpin
     if reaction == "round_pushpin":
@@ -88,12 +89,16 @@ def update_emoji(event, client):
                 latest=message_ts,
                 limit=1
             )
-
             message = result["messages"][0]
-            # Print message text and writes it into the messages.txt file
+
+            # Print message text
+            logger.info("{} has reacted with a '{}' to {}".format(user_id, reaction, message["text"]))
+            client.chat_postMessage(channel=channel_id, text="What do you want to title this wiki?", thread_ts=message_ts)
+
+            #  writes the message that was being reacted to into the messages.txt file
             file.write("{}\n".format(message["text"]))
             file.close()
-            logger.info("{} has reacted with a '{}' to {}".format(user_id, reaction, message["text"]))
+
         except SlackApiError as e:
             logger.info(f"Error: {e}")
 
@@ -136,12 +141,28 @@ def message(event, client):
     channel_id = event.get("channel")
     user_id = event.get("user")
     text = event.get("text")
+    message_ts = event.get("ts")
+    message_thread_ts = event.get("thread_ts")
 
     # logs the message in the terminal, but NOT write it to a text file.
     if text and text.lower() == "start":
         return start_onboarding(user_id, channel_id, client)
+
     logger.info("{} sent message: {}".format(user_id, text))
-    file.close()
+
+    # if the message is sent as a threaded reply within ten minutes of the original message, 
+    # it'll be written into messages.txt as the title of documentation. Will fix later.
+    try:    
+        print(float(message_ts) - float(message_thread_ts))
+        if float(message_ts) - float(message_thread_ts) <= 600:
+            client.chat_postMessage(channel=channel_id, text="Got it.", thread_ts=message_thread_ts)
+            # initializes the file for the messages and puts cursor at the last line
+            file = open("PythOnBoardingBot/messages.txt", "r+")
+            file.seek(len(file.read(-1)))
+            file.write("Title of Documentation: {}\n".format(text))
+            file.close()
+    except TypeError:
+        return
 
 
 if __name__ == "__main__":
