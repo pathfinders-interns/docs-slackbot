@@ -8,6 +8,9 @@ onboarding_tutorials_sent = {}
 logging.basicConfig(filename="test.md", 
 					format='%(asctime)s %(message)s', 
 					filemode='w') 
+
+
+
 def start_onboarding(user_id: str, channel: str, client: WebClient):
     # Create a new onboarding tutorial.
     onboarding_tutorial = OnboardingTutorial(channel)
@@ -118,7 +121,8 @@ def message(event, client):
     channel_id = event.get("channel")
     user_id = event.get("user")
     text = event.get("text")
-    logger.info("{} sent message: {}".format(user_id, text))
+    logger.info("{}".format(user_id))
+    logger.info("{}".format(text))
     if text and text.lower() == "start":
         return start_onboarding(user_id, channel_id, client)
 if __name__ == "__main__":
