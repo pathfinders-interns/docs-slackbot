@@ -1,3 +1,4 @@
+#starting code from https://github.com/slackapi/python-slack-sdk/tree/main/tutorial
 import logging
 import os
 from slack_bolt import App
@@ -134,10 +135,6 @@ def update_pin(event, client):
 # Here we'll link the message callback to the 'message' event.
 @app.event("message")
 def message(event, client):
-    # initializes the file for the messages and puts cursor at the last line
-    file = open("PythOnBoardingBot/messages.txt", "r+")
-    file.seek(len(file.read(-1)))
-
     channel_id = event.get("channel")
     user_id = event.get("user")
     text = event.get("text")
@@ -157,8 +154,7 @@ def message(event, client):
         if float(message_ts) - float(message_thread_ts) <= 600:
             client.chat_postMessage(channel=channel_id, text="Got it.", thread_ts=message_thread_ts)
             # initializes the file for the messages and puts cursor at the last line
-            file = open("PythOnBoardingBot/messages.txt", "r+")
-            file.seek(len(file.read(-1)))
+            file = open("messages.txt", "a+")
             file.write("Title of Documentation: {}\n".format(text))
             file.close()
     except TypeError:

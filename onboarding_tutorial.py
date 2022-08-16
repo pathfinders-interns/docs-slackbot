@@ -1,3 +1,5 @@
+#slackbot tutorial original code from https://github.com/slackapi/python-slack-sdk/tree/main/tutorial, modified.
+
 class OnboardingTutorial:
     """Constructs the onboarding message and stores the state of which tasks were completed."""
 
