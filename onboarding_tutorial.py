@@ -1,5 +1,11 @@
 #slackbot tutorial original code from https://github.com/slackapi/python-slack-sdk/tree/main/tutorial, modified.
 
+# questions that the bot asks when documenting
+question_one = "What do you want to title this wiki?"
+question_two = "Do you want to upload a supplemental image? If so, upload a link of the image. If not, type \"None\"."
+question_three = "Do you want to add anything else? If so, type any supplemental information you wish to add. If not, type \"None\"."
+already_scraped = "This message has already been turned into a wiki page!"
+
 class OnboardingTutorial:
     """Constructs the onboarding message and stores the state of which tasks were completed."""
 
@@ -8,13 +14,36 @@ class OnboardingTutorial:
         "text": {
             "type": "mrkdwn",
             "text": (
-                "Welcome to Slack! :wave: We're so glad you're here. :blush:\n\n"
-                "I am a bot that allows you to react to the messages to add it to a documentation! Never lose your documentations in your Slack channels ever again!\n\n"
-                "*Get started by completing the steps below:*"
+                "Welcome to Slack! :wave: We're so glad you're here. :blush:\n\n\n"
+                "*Who am I?*\n\n"
             ),
         },
     }
+
+    ABOUT_ME_BLOCK = {
+    "type": "section",
+    "text": {
+        "type": "mrkdwn",
+        "text": (
+            "I am a bot that allows you to react to the messages to add it to a documentation! Never lose your documentation in Slack channels ever again!\n\n\n"
+            "*How can I be activated?*"
+        ),
+    },
+}
     DIVIDER_BLOCK = {"type": "divider"}
+
+    END_BLOCK = {
+    "type": "section",
+    "text": {
+        "type": "mrkdwn",
+        "text": (
+            "After you have prompted me to save a message, I will only save it *after you answer a few supplemental questions*:\n\n"
+            f"1. {question_one}\n"
+            f"2. {question_two}\n"
+            f"3. {question_three}"
+        ),
+    },
+}
 
     def __init__(self, channel):
         self.channel = channel
@@ -33,35 +62,37 @@ class OnboardingTutorial:
             "blocks": [
                 self.WELCOME_BLOCK,
                 self.DIVIDER_BLOCK,
-                *self._get_reaction_block(),
+                self.ABOUT_ME_BLOCK,
                 self.DIVIDER_BLOCK,
+                *self._get_reaction_block(),
                 *self._get_pin_block(),
+                self.DIVIDER_BLOCK,
+                self.END_BLOCK
             ],
         }
 
     def _get_reaction_block(self):
-        task_checkmark = self._get_checkmark(self.reaction_task_completed)
         text = (
-            f"{task_checkmark} *Add an emoji reaction to this message* :thinking_face:\n"
+            "*Add an emoji reaction to this message* :round_pushpin:\n"
             "You can quickly respond to any message on Slack with an emoji reaction. "
-            "Reactions can be used for any purpose: voting, checking off to-do items, showing excitement."
+            "React with a :round_pushpin: to prompt me to save the message to a wiki page."
         )
         information = (
             ":information_source: *<https://get.slack.help/hc/en-us/articles/206870317-Emoji-reactions|"
-            "Learn How to Use Emoji Reactions>*"
+            "How to Use Emoji Reactions>*"
         )
         return self._get_task_block(text, information)
 
     def _get_pin_block(self):
-        task_checkmark = self._get_checkmark(self.pin_task_completed)
         text = (
-            f"{task_checkmark} *Pin this message* :round_pushpin:\n"
+            "*Pin this message* :pushpin:\n"
             "Important messages and files can be pinned to the details pane in any channel or"
-            " direct message, including group messages, for easy reference."
+            " direct message, including group messages, for easy reference. "
+            "Pinning any message also prompts me to save the message to a wiki page."
         )
         information = (
             ":information_source: *<https://get.slack.help/hc/en-us/articles/205239997-Pinning-messages-and-files"
-            "|Learn How to Pin a Message>*"
+            "|How to Pin a Message>*"
         )
         return self._get_task_block(text, information)
 
