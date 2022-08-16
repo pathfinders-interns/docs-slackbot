@@ -77,8 +77,7 @@ def update_emoji(event, client):
     # reactions and message only logged if the reaction is a round pushpin
     if reaction == "round_pushpin":
         # initializes the file for the messages
-        file = open("PythOnBoardingBot/messages.txt", "r+")
-        file.seek(len(file.read(-1)))
+        file = open("PythOnBoardingBot/messages.txt", "a+")
 
         try:
             # Call the conversations.history method using the WebClient
