@@ -1,10 +1,13 @@
-#slackbot tutorial original code from https://github.com/slackapi/python-slack-sdk/tree/main/tutorial, modified.
+# This file contains all of the messages that the Slack Bot sends in channels.
+# slackbot tutorial original code from https://github.com/slackapi/python-slack-sdk/tree/main/tutorial, modified.
 
 # questions that the bot asks when documenting
 question_one = "What do you want to title this wiki?"
 question_two = "Do you want to upload a supplemental image? If so, upload a link of the image. If not, type \"None\"."
 question_three = "Do you want to add anything else? If so, type any supplemental information you wish to add. If not, type \"None\"."
 already_scraped = "This message has already been turned into a wiki page!"
+response_recorded = "Response recorded."
+wiki_page_made = "The wiki page has been created."
 
 class OnboardingTutorial:
     """Constructs the onboarding message and stores the state of which tasks were completed."""

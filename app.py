@@ -2,7 +2,7 @@
 import logging
 from slack_bolt import App
 from slack_sdk.web import WebClient
-import onboarding_tutorial
+import bot_messages
 
 # Initialize a Bolt for Python app
 app = App()
@@ -14,7 +14,7 @@ onboarding_tutorials_sent = {}
 
 def start_onboarding(user_id: str, channel: str, client: WebClient):
     # Create a new onboarding tutorial.
-    tutorial = onboarding_tutorial.OnboardingTutorial(channel)
+    tutorial = bot_messages.OnboardingTutorial(channel)
 
     # Get the onboarding message payload
     message = tutorial.get_message_payload()
@@ -69,9 +69,9 @@ def update_emoji(event, client):
     # if the message has been scraped, post a message reminding the user.
     if reaction == "round_pushpin":
         if not message_in_documentation(message_ts):
-            client.chat_postMessage(channel=channel_id, text=onboarding_tutorial.question_one, thread_ts=message_ts)
+            client.chat_postMessage(channel=channel_id, text=bot_messages.question_one, thread_ts=message_ts)
         else:
-            client.chat_postMessage(channel=channel_id, text=onboarding_tutorial.already_scraped, thread_ts=message_ts)
+            client.chat_postMessage(channel=channel_id, text=bot_messages.already_scraped, thread_ts=message_ts)
 
 
 # ============== Message Events ============= #
@@ -88,8 +88,12 @@ def message(event, client):
     try:
         if text.lower() == "start":
             return start_onboarding(user_id, channel_id, client)
+    # AttributeError occurs when text doesn't have a .lower() attribute.
+    # AttributeError occurs when ONLY links are sent to the channel.
+    # Ex. A user typing "https://www.slack.com" will cause AttributeError.
+    # This error is of minimal impact to the entirety of the code. No error logging is necessary.
     except AttributeError:
-        None
+        logger.info("AttributeError has occurred due to a posted message being solely a link.")
 
     # Scrapes message into the terminal; used for debugging purposes.
     logger.info(f"New Message: {text}")
@@ -108,8 +112,8 @@ def message(event, client):
         if has_round_pushpin:
             # if the parent message has not been documented, proceed; if not, ignore.
             if not message_in_documentation(message_thread_ts):
-                # creates temporary variables to store whether the bot has asked a certain question.
-                question_1_asked, question_2_asked, question_3_asked = False, False, False
+                # creates a temporary variable to record number of the last question that was asked.
+                last_question_asked = 0
 
                 # Calls conversations.replies to get the thread history AND the message intended to be scraped.
                 # for more information on the conversation.replies method: https://api.slack.com/methods/conversations.replies
@@ -121,43 +125,41 @@ def message(event, client):
                 )["messages"]
 
                 # compares the thread message history to the individual questions. 
-                # if a the exact string of a question is in message["text"], mark corresponding boolean as true.
+                # if a the exact string of a question is in message["text"], change the value of last_question_asked accordingly.
                 for message in thread_message_history:
-                    if message["text"] == onboarding_tutorial.question_one:
-                        question_1_asked = True
-                    elif message["text"] == onboarding_tutorial.question_two:
-                        question_2_asked = True
-                    elif message["text"] == onboarding_tutorial.question_three:
-                        question_3_asked = True
+                    if message["text"] == bot_messages.question_one:
+                        last_question_asked = 1
+                    elif message["text"] == bot_messages.question_two:
+                        last_question_asked = 2
+                    elif message["text"] == bot_messages.question_three:
+                        last_question_asked = 3
 
-                # if the title (question 1) has been asked for, ask supplemental questions.
-                if question_1_asked:
-                    # bot records response to question 1 and asks question 2 if question 2 hasn't been asked already.
-                    if not question_2_asked:
-                        client.chat_postMessage(channel=channel_id, text="Response recorded.", thread_ts=message_thread_ts)
-                        client.chat_postMessage(channel=channel_id, text=onboarding_tutorial.question_two, thread_ts=message_ts)
-                        file_write(f"# {text}\n")
-                    # bot records response to question 2 and asks question 3 if question 3 hasn't been asked already.
-                    elif not question_3_asked:
-                        client.chat_postMessage(channel=channel_id, text="Response recorded.", thread_ts=message_thread_ts)
-                        client.chat_postMessage(channel=channel_id, text=onboarding_tutorial.question_three, thread_ts=message_ts)
+                # bot records response to question 1 and asks question 2 afterwards.
+                if last_question_asked == 1:
+                    client.chat_postMessage(channel=channel_id, text=bot_messages.response_recorded, thread_ts=message_thread_ts)
+                    client.chat_postMessage(channel=channel_id, text=bot_messages.question_two, thread_ts=message_ts)
+                    file_write(f"# {text}\n")
+                # bot records response to question 2 and asks question 3 afterwards.
+                elif last_question_asked == 2:
+                    client.chat_postMessage(channel=channel_id, text=bot_messages.response_recorded, thread_ts=message_thread_ts)
+                    client.chat_postMessage(channel=channel_id, text=bot_messages.question_three, thread_ts=message_ts)
 
-                        if text == "None":
-                            file_write("No supplemental image was provided.\n\n")
-                        else:
-                            # Note: only links of images will work. uploading an image file will not be recognized.
-                            file_write(f"![Supplemental Image]({text})\n\n")
-                    # bot records response to the last question (question 3) if the last question (question 3) has been asked.
-                    # bot also records the originally scraped message and the timestamp of that scraped message.
-                    # the timestamp is used to check whether that message has been scraped already. it is used in the function message_in_documentation().
+                    if text == "None":
+                        file_write("No supplemental image was provided.\n\n")
                     else:
-                        client.chat_postMessage(channel=channel_id, text="Response recorded.", thread_ts=message_thread_ts)
-                        client.chat_postMessage(channel=channel_id, text="The wiki entry has been made.", thread_ts=message_ts)
-                        scraped_message = thread_message_history[0]["text"]
-                        if text == "None":
-                            file_write(f"## Original Documentation:\n\n{scraped_message}\n\n## Additional Info:\n\n###### Message Timestamp: {message_thread_ts}\n\n")
-                        else:
-                            file_write(f"## Original Documentation:\n\n{scraped_message}\n\n## Additional Info:\n\n{text}\n\n###### Message Timestamp: {message_thread_ts}\n\n")
+                        # Note: only links of images will work. uploading an image file will not be recognized.
+                        file_write(f"![Supplemental Image]({text})\n\n")
+                # bot records response to question 3.
+                # bot also records the originally scraped message and the timestamp of that scraped message.
+                # the timestamp is used to check whether that message has been scraped already. it is used in the function message_in_documentation().
+                elif last_question_asked == 3:
+                    client.chat_postMessage(channel=channel_id, text=bot_messages.response_recorded, thread_ts=message_thread_ts)
+                    client.chat_postMessage(channel=channel_id, text=bot_messages.wiki_page_made, thread_ts=message_ts)
+                    scraped_message = thread_message_history[0]["text"]
+                    if text == "None":
+                        file_write(f"## Original Documentation:\n\n{scraped_message}\n\n## Additional Info:\n\n###### Message Timestamp: {message_thread_ts}\n\n")
+                    else:
+                        file_write(f"## Original Documentation:\n\n{scraped_message}\n\n## Additional Info:\n\n{text}\n\n###### Message Timestamp: {message_thread_ts}\n\n")
 
     # ========================= Code End ========================= #
 
