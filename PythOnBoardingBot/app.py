@@ -1,5 +1,6 @@
 import logging
 import os
+import subprocess
 from slack_bolt import App
 from slack_sdk.web import WebClient
 from onboarding_tutorial import OnboardingTutorial
@@ -77,7 +78,7 @@ def update_emoji(event, client):
     # reactions and message only logged if the reaction is a round pushpin
     if reaction == "round_pushpin":
         # initializes the file for the messages
-        file = open("test.md", "r+")
+        file = open("../../docs-slackbot.wiki/test.md", "r+")
         file.seek(len(file.read(-1)))
 
         try:
@@ -136,7 +137,7 @@ def update_pin(event, client):
 @app.event("message")
 def message(event, client):
     # initializes the file for the messages and puts cursor at the last line
-    file = open("test.md", "r+")
+    file = open("../../docs-slackbot.wiki/test.md", "r+")
     file.seek(len(file.read(-1)))
 
     channel_id = event.get("channel")
@@ -150,7 +151,7 @@ def message(event, client):
         return start_onboarding(user_id, channel_id, client)
 
     logger.info("{} sent message: {}".format(user_id, text))
-    file = open("test.md", "r+")
+    file = open("../../docs-slackbot.wiki/test.md", "r+")
     file.seek(len(file.read(-1)))
     file.write("{} sent message: {}\n".format(user_id, text))
     file.close()
@@ -161,7 +162,7 @@ def message(event, client):
         if float(message_ts) - float(message_thread_ts) <= 600:
             client.chat_postMessage(channel=channel_id, text="Got it.", thread_ts=message_thread_ts)
             # initializes the file for the messages and puts cursor at the last line
-            file = open("test.md", "r+")
+            file = open("../../docs-slackbot.wiki/test.md", "r+")
             file.seek(len(file.read(-1)))
             file.write("Title of Documentation: {}\n".format(text))
             file.close()
@@ -176,3 +177,5 @@ if __name__ == "__main__":
     logger.setLevel(logging.DEBUG)
     logger.addHandler(logging.StreamHandler())
     app.start(3000)
+
+    subprocess.Popen(['cd', '../../docs-slackbot.wiki', '-d'])

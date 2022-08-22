@@ -7,6 +7,7 @@ class OnboardingTutorial:
             "type": "mrkdwn",
             "text": (
                 "Welcome to Slack! :wave: We're so glad you're here. :blush:\n\n"
+                 "I am a bot that allows you to react to the messages to add it to a documentation! Never lose your documentations in your Slack channels ever again!\n\n"
                 "*Get started by completing the steps below:*"
             ),
         },
