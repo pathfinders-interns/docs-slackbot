@@ -1,14 +1,17 @@
 import logging
+import os
+import subprocess
 from slack_bolt import App
 from slack_sdk.web import WebClient
 from onboarding_tutorial import OnboardingTutorial
 from slack_sdk.errors import SlackApiError
-app = App()
-onboarding_tutorials_sent = {}
-logging.basicConfig(filename="test.md", 
-					format='%(asctime)s %(message)s', 
-					filemode='w') 
 
+# Initialize a Bolt for Python app
+app = App()
+
+# For simplicity we'll store our app data in-memory with the following data structure.
+# onboarding_tutorials_sent = {"channel": {"user_id": OnboardingTutorial}}
+onboarding_tutorials_sent = {}
 
 
 def start_onboarding(user_id: str, channel: str, client: WebClient):
@@ -30,6 +33,8 @@ def start_onboarding(user_id: str, channel: str, client: WebClient):
     if channel not in onboarding_tutorials_sent:
         onboarding_tutorials_sent[channel] = {}
     onboarding_tutorials_sent[channel][user_id] = onboarding_tutorial
+
+
 # ================ Team Join Event =============== #
 # When the user first joins a team, the type of the event will be 'team_join'.
 # Here we'll link the onboarding_message callback to the 'team_join' event.
@@ -51,6 +56,7 @@ def onboarding_message(event, client):
 
     # Post the onboarding message.
     start_onboarding(user_id, channel, client)
+    
 
 
 # ============= Reaction Added Events ============= #
@@ -62,28 +68,43 @@ def update_emoji(event, client):
     """Update the onboarding welcome message after receiving a "reaction_added"
     event from Slack. Update timestamp for welcome message as well.
     """
-    # Get the ids of the Slack user and channel associated with the incoming event
+    # Get the ids of the Slack user, channel, reaction, and timestamp of message reacted to associated with the incoming event
     channel_id = event.get("item", {}).get("channel")
     user_id = event.get("user")
-    emoji = event.get("reaction")
-    text = event.get("ts")
+    reaction = event.get("reaction")
+    message_ts = event.get("item", {}).get("ts")
+    message_thread_ts = event.get("item", {}).get("thread_ts")
 
-    try:
-        # Call the conversations.history method using the WebClient
-        # The client passes the token you included in initialization
-        # thx to Jiaxing 
-        result = client.conversations_history(
-            channel=channel_id,
-            inclusive=True,
-            oldest=text,
-            latest=text,
-            limit=1
-        )
-        message = result["messages"][0]
-        logger.info("{} reacted with {} on {}".format(user_id, emoji, message["text"]))
-    except SlackApiError as e:
-        logger.info(f"Error: {e}")
-    
+    # reactions and message only logged if the reaction is a round pushpin
+    if reaction == "round_pushpin":
+        # initializes the file for the messages
+        file = open("../../docs-slackbot.wiki/test.md", "r+")
+        file.seek(len(file.read(-1)))
+
+        try:
+            # Call the conversations.history method using the WebClient
+            # The client passes the token you included in initialization    
+            result = client.conversations_history(
+                channel=channel_id,
+                inclusive=True,
+                oldest=message_ts,
+                latest=message_ts,
+                limit=1
+            )
+            message = result["messages"][0]
+
+            # Print message text
+            logger.info("{} has reacted with a '{}' to {}".format(user_id, reaction, message["text"]))
+            client.chat_postMessage(channel=channel_id, text="What do you want to title this wiki?", thread_ts=message_ts)
+
+            #  writes the message that was being reacted to into the messages.txt file
+            file.write("{}\n".format(message["text"]))
+            file.close()
+
+        except SlackApiError as e:
+            logger.info(f"Error: {e}")
+
+
 
 # =============== Pin Added Events ================ #
 # When a users pins a message the type of the event will be 'pin_added'.
@@ -111,24 +132,50 @@ def update_pin(event, client):
 
 
 # ============== Message Events ============= #
-# When a user sends a DM, the event type will be 'message'.
+# When a user sends a message to a channel, the event type will be 'message'.
 # Here we'll link the message callback to the 'message' event.
 @app.event("message")
 def message(event, client):
-    """Display the onboarding welcome message after receiving a message
-    that contains "start".
-    """
+    # initializes the file for the messages and puts cursor at the last line
+    file = open("../../docs-slackbot.wiki/test.md", "r+")
+    file.seek(len(file.read(-1)))
+
     channel_id = event.get("channel")
     user_id = event.get("user")
     text = event.get("text")
-    logger.info("{}".format(user_id))
-    logger.info("{}".format(text))
+    message_ts = event.get("ts")
+    message_thread_ts = event.get("thread_ts")
+
+    # logs the message in the terminal, but NOT write it to a text file.
     if text and text.lower() == "start":
         return start_onboarding(user_id, channel_id, client)
+
+    logger.info("{} sent message: {}".format(user_id, text))
+    file = open("../../docs-slackbot.wiki/test.md", "r+")
+    file.seek(len(file.read(-1)))
+    file.write("{} sent message: {}\n".format(user_id, text))
+    file.close()
+    # if the message is sent as a threaded reply within ten minutes of the original message, 
+    # it'll be written into messages.txt as the title of documentation. Will fix later.
+    try:    
+        print(float(message_ts) - float(message_thread_ts))
+        if float(message_ts) - float(message_thread_ts) <= 600:
+            client.chat_postMessage(channel=channel_id, text="Got it.", thread_ts=message_thread_ts)
+            # initializes the file for the messages and puts cursor at the last line
+            file = open("../../docs-slackbot.wiki/test.md", "r+")
+            file.seek(len(file.read(-1)))
+            file.write("Title of Documentation: {}\n".format(text))
+            file.close()
+    except TypeError:
+        return
+    
+
+
+
 if __name__ == "__main__":
     logger = logging.getLogger()
     logger.setLevel(logging.DEBUG)
     logger.addHandler(logging.StreamHandler())
     app.start(3000)
 
-
+    subprocess.Popen(['cd', '../../docs-slackbot.wiki', '-d'])
