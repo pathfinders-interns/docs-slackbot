@@ -1,5 +1,7 @@
 #starting code from https://github.com/slackapi/python-slack-sdk/tree/main/tutorial
 import logging
+import subprocess
+import os
 from slack_bolt import App
 from slack_sdk.web import WebClient
 import bot_messages
@@ -69,15 +71,19 @@ def update_emoji(event, client):
     # if the message has been scraped, post a message reminding the user.
     if reaction == "round_pushpin":
         if not message_in_documentation(message_ts):
-            client.chat_postMessage(channel=channel_id, text=bot_messages.question_one, thread_ts=message_ts)
+            client.chat_postMessage(channel=channel_id, text=bot_messages.questions[0], thread_ts=message_ts)
         else:
             client.chat_postMessage(channel=channel_id, text=bot_messages.already_scraped, thread_ts=message_ts)
 
 
+# wiki_title will be used to store the title of the potential wiki page.
+# since local variables lose their value assignment after the call, wiki_title is a global variable so it can be used multiple times.
+wiki_title = ""
 # ============== Message Events ============= #
 # When a user sends a message to a channel, the event type will be 'message'.
 @app.event("message")
 def message(event, client):
+    global wiki_title
     channel_id = event.get("channel")
     user_id = event.get("user")
     text = event.get("text")
@@ -88,12 +94,12 @@ def message(event, client):
     try:
         if text.lower() == "start":
             return start_onboarding(user_id, channel_id, client)
-    # AttributeError occurs when text doesn't have a .lower() attribute.
-    # AttributeError occurs when ONLY links are sent to the channel.
+    # AttributeError occurs when variable 'text' doesn't have a .lower() attribute.
+    # AttributeError occurs when a message sent to a channel does not have raw text.
     # Ex. A user typing "https://www.slack.com" will cause AttributeError.
     # This error is of minimal impact to the entirety of the code. No error logging is necessary.
     except AttributeError:
-        logger.info("AttributeError has occurred due to a posted message being solely a link.")
+        logger.info("AttributeError has occurred due to a posted message having no raw text, such as a standalone URL or an image.")
 
     # Scrapes message into the terminal; used for debugging purposes.
     logger.info(f"New Message: {text}")
@@ -127,53 +133,82 @@ def message(event, client):
                 # compares the thread message history to the individual questions. 
                 # if a the exact string of a question is in message["text"], change the value of last_question_asked accordingly.
                 for message in thread_message_history:
-                    if message["text"] == bot_messages.question_one:
+                    if message["text"] == bot_messages.questions[0]:
                         last_question_asked = 1
-                    elif message["text"] == bot_messages.question_two:
+                    elif message["text"] == bot_messages.questions[1]:
                         last_question_asked = 2
-                    elif message["text"] == bot_messages.question_three:
+                    elif message["text"] == bot_messages.questions[2]:
                         last_question_asked = 3
 
-                # bot records response to question 1 and asks question 2 afterwards.
+
+                # bot records response (the wiki title) and asks question 2 afterwards.
                 if last_question_asked == 1:
-                    client.chat_postMessage(channel=channel_id, text=bot_messages.response_recorded, thread_ts=message_thread_ts)
-                    client.chat_postMessage(channel=channel_id, text=bot_messages.question_two, thread_ts=message_ts)
-                    file_write(f"# {text}\n")
-                # bot records response to question 2 and asks question 3 afterwards.
+                    if not title_in_documentation(text):
+                        client.chat_postMessage(channel=channel_id, text=bot_messages.response_recorded, thread_ts=message_thread_ts)
+                        client.chat_postMessage(channel=channel_id, text=bot_messages.questions[1], thread_ts=message_ts)
+                        wiki_title = text
+                    else:
+                        client.chat_postMessage(channel=channel_id, text=bot_messages.already_titled, thread_ts=message_ts)
+                # bot writes response to question 2 into markdown file and asks question 3 afterwards.
                 elif last_question_asked == 2:
                     client.chat_postMessage(channel=channel_id, text=bot_messages.response_recorded, thread_ts=message_thread_ts)
-                    client.chat_postMessage(channel=channel_id, text=bot_messages.question_three, thread_ts=message_ts)
+                    client.chat_postMessage(channel=channel_id, text=bot_messages.questions[2], thread_ts=message_ts)
 
-                    if text == "None":
-                        file_write("No supplemental image was provided.\n\n")
-                    else:
+                    if not text == "None":
                         # Note: only links of images will work. uploading an image file will not be recognized.
-                        file_write(f"![Supplemental Image]({text})\n\n")
-                # bot records response to question 3.
-                # bot also records the originally scraped message and the timestamp of that scraped message.
+                        file_write(f"![Supplemental Image]({text})\n\n", wiki_title)
+
+                # bot writes response to question 3.
+                # bot also writes the originally scraped message and the timestamp of that scraped message.
                 # the timestamp is used to check whether that message has been scraped already. it is used in the function message_in_documentation().
                 elif last_question_asked == 3:
                     client.chat_postMessage(channel=channel_id, text=bot_messages.response_recorded, thread_ts=message_thread_ts)
                     client.chat_postMessage(channel=channel_id, text=bot_messages.wiki_page_made, thread_ts=message_ts)
                     scraped_message = thread_message_history[0]["text"]
                     if text == "None":
-                        file_write(f"## Original Documentation:\n\n{scraped_message}\n\n## Additional Info:\n\n###### Message Timestamp: {message_thread_ts}\n\n")
+                        file_write(f"## Original Documentation\n\n{scraped_message}\n\n## Additional Info\n\nMessage Timestamp: {message_thread_ts}\n\n", wiki_title)
                     else:
-                        file_write(f"## Original Documentation:\n\n{scraped_message}\n\n## Additional Info:\n\n{text}\n\n###### Message Timestamp: {message_thread_ts}\n\n")
+                        file_write(f"## Original Documentation\n\n{scraped_message}\n\n## Additional Info\n\n{text}\n\nMessage Timestamp: {message_thread_ts}\n\n", wiki_title)
+                    subprocess.call(['git', 'add', f"{wiki_title}.md"], cwd="../docs-slackbot.wiki")
+                    subprocess.call(['git', 'commit', '-am', f"A new wiki named {wiki_title} has been uploaded."], cwd="../docs-slackbot.wiki")
+                    subprocess.call(['git', 'push', '-f'], cwd="../docs-slackbot.wiki")
 
     # ========================= Code End ========================= #
 
+# indev, will be commented for now
+# the following listener will listen for the /scrape command and change the user privacy status based on the input.
+# @app.command("/scrape")
+# def user_privacy(ack, command, respond):
+#     ack()
+#     try:
+#         if command["text"].lower() == "on":
+#             respond("Other users can now scrape your messages.")
+#         elif command["text"].lower() == "off":
+#             respond("Other users will now be unable to scrape your messages.")
+#     # This is a KeyError. It occurs when the user did not input text alongside the command.
+#     # In other words, command["text"] returned no text.
+#     except KeyError:
+#         return respond("Please type on or off to change whether you want others to scrape your messages.")
 
-# a function that uses the timestamp of a message to check if that timestamp exists in the markdown file already.
+
+# a function that takes a file title as input to check if that title exists in the wiki repo already.
+# Note: this is currently incomplete, as files pulled from the cloud will have spaces replaced by hyphens.
+# Example: "This Is A File.md" will be pulled as "This-Is-A-File.md"
+def title_in_documentation(file_title):
+    return os.path.exists(f"../docs-slackbot.wiki/{file_title}.md")
+
+
+# a function that uses the timestamp of a message to check if that timestamp exists in the wiki repo already.
 # in other words, this will check whether a message has already been scraped.
 def message_in_documentation(message_ts: str):
-    with open("PythOnBoardingBot/messages.md", "a+") as file:
-        file.seek(0)
-        return message_ts in file.read()
+    subprocess.call(['git', 'pull'], cwd="../docs-slackbot.wiki")
+    return "returncode=0" in str(subprocess.run(['grep', '-r', message_ts, '.'], cwd="../docs-slackbot.wiki"))
 
-# a function to write desired text into the markdown file.
-def file_write(text):
-    with open("PythOnBoardingBot/messages.md", "a+") as file:
+
+# a function to write desired text into a markdown file titled file_title.
+def file_write(text, file_title):
+    subprocess.call(['git', 'pull'], cwd="../docs-slackbot.wiki")
+    with open(f"../docs-slackbot.wiki/{file_title}.md", "a+") as file:
         return file.write(text)
 
 

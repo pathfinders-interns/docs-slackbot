@@ -2,10 +2,13 @@
 # slackbot tutorial original code from https://github.com/slackapi/python-slack-sdk/tree/main/tutorial, modified.
 
 # questions that the bot asks when documenting
-question_one = "What do you want to title this wiki?"
-question_two = "Do you want to upload a supplemental image? If so, upload a link of the image. If not, type \"None\"."
-question_three = "Do you want to add anything else? If so, type any supplemental information you wish to add. If not, type \"None\"."
+questions = ["What do you want to title this wiki?", 
+            "Do you want to upload a supplemental image? If so, upload a link of the image. If not, type \"None\".", 
+            "Do you want to add anything else? If so, type any supplemental information you wish to add. If not, type \"None\"."
+]
+
 already_scraped = "This message has already been turned into a wiki page!"
+already_titled = "This title already exists! Type another one."
 response_recorded = "Response recorded."
 wiki_page_made = "The wiki page has been created."
 
@@ -41,9 +44,9 @@ class OnboardingTutorial:
         "type": "mrkdwn",
         "text": (
             "After you have prompted me to save a message, I will only save it *after you answer a few supplemental questions*:\n\n"
-            f"1. {question_one}\n"
-            f"2. {question_two}\n"
-            f"3. {question_three}"
+            f"1. {questions[0]}\n"
+            f"2. {questions[1]}\n"
+            f"3. {questions[2]}"
         ),
     },
 }
@@ -92,6 +95,7 @@ class OnboardingTutorial:
             "Important messages and files can be pinned to the details pane in any channel or"
             " direct message, including group messages, for easy reference. "
             "Pinning any message also prompts me to save the message to a wiki page."
+            "NOTE: THIS FEATURE IS CURRENTLY IN DEVELOPMENT. IT DOESN'T WORK YET!"
         )
         information = (
             ":information_source: *<https://get.slack.help/hc/en-us/articles/205239997-Pinning-messages-and-files"
